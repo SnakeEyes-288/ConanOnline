@@ -86,7 +86,7 @@ export function createRoomStore(options = {}) {
     if (room.hostPlayerId !== playerId) {
       throw new Error('Only host can start match');
     }
-    if (room.status !== 'lobby' && room.status !== 'final') {
+    if (room.status !== 'lobby' && room.status !== 'finished') {
       throw new Error('Match already started');
     }
 
@@ -173,7 +173,7 @@ export function createRoomStore(options = {}) {
 
     const nextRoundIndex = room.match.roundIndex + 1;
     if (nextRoundIndex >= MATCH_ROUNDS) {
-      room.status = 'final';
+      room.status = 'finished';
       room.currentRound = null;
       room.match = null;
       touch(room);

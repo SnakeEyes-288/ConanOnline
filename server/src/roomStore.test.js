@@ -172,7 +172,7 @@ describe('room store lifecycle', () => {
       }
     }
 
-    expect(currentRoom.status).toBe('final');
+    expect(currentRoom.status).toBe('finished');
     expect(currentRoom.currentRound).toBeNull();
     expect(currentRoom.players.find((candidate) => candidate.id === player.id).score).toBe(10);
   });
