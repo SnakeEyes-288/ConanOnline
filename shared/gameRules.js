@@ -37,7 +37,9 @@ export function createRoundDeck(count = MATCH_ROUNDS, roster = characters, rando
   const pool = [...roster];
 
   for (let index = pool.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(random() * (index + 1));
+    const randomValue = Number(random());
+    const scaledIndex = Math.floor(randomValue * (index + 1));
+    const swapIndex = Number.isFinite(scaledIndex) ? Math.max(0, Math.min(index, scaledIndex)) : 0;
     [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
   }
 
