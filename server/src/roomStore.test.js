@@ -95,17 +95,18 @@ describe('room store lifecycle', () => {
     expect(room.currentRound).toEqual(
       expect.objectContaining({
         number: 1,
-        characterId: deck[0],
         clue: characters.find((character) => character.id === deck[0]).clues[0],
         acceptsAnswersUntil: clock.now() + ROUND_SECONDS * 1_000
       })
     );
+    expect(room.currentRound.characterId).toBeUndefined();
     expect(room.deck).toBeUndefined();
   });
 
   test('allows wrong answers, then first correct answer wins one point and reveals immediately', () => {
-    const { store, host, player, room } = createStartedRoom();
-    const wrongId = characters.find((character) => character.id !== room.currentRound.characterId).id;
+    const { deck, store, host, player, room } = createStartedRoom();
+    const correctId = deck[0];
+    const wrongId = characters.find((character) => character.id !== correctId).id;
 
     const wrong = store.submitAnswer({
       code: room.code,
@@ -120,7 +121,7 @@ describe('room store lifecycle', () => {
     const correct = store.submitAnswer({
       code: room.code,
       playerId: player.id,
-      answerId: room.currentRound.characterId
+      answerId: correctId
     });
 
     expect(correct.correct).toBe(true);
@@ -131,16 +132,16 @@ describe('room store lifecycle', () => {
   });
 
   test('rejects answers after the round already has a winner', () => {
-    const { store, host, player, room } = createStartedRoom();
-    store.submitAnswer({ code: room.code, playerId: player.id, answerId: room.currentRound.characterId });
+    const { deck, store, host, player, room } = createStartedRoom();
+    store.submitAnswer({ code: room.code, playerId: player.id, answerId: deck[0] });
 
     expect(() =>
-      store.submitAnswer({ code: room.code, playerId: host.id, answerId: room.currentRound.characterId })
+      store.submitAnswer({ code: room.code, playerId: host.id, answerId: deck[0] })
     ).toThrow('Round is not accepting answers');
   });
 
   test('expires unanswered rounds and rejects late answers', () => {
-    const { clock, store, host, room } = createStartedRoom();
+    const { clock, deck, store, host, room } = createStartedRoom();
     clock.advance(ROUND_SECONDS * 1_000 + 1);
 
     const expired = store.expireRound({ code: room.code });
@@ -148,8 +149,69 @@ describe('room store lifecycle', () => {
     expect(expired.status).toBe('revealing');
     expect(expired.currentRound.winnerPlayerId).toBeNull();
     expect(() =>
-      store.submitAnswer({ code: room.code, playerId: host.id, answerId: room.currentRound.characterId })
+      store.submitAnswer({ code: room.code, playerId: host.id, answerId: deck[0] })
     ).toThrow('Round is not accepting answers');
+  });
+
+  test('expires an unanswered round exactly at the answer deadline', () => {
+    const { clock, store, room } = createStartedRoom();
+    clock.advance(ROUND_SECONDS * 1_000);
+
+    const expired = store.expireRound({ code: room.code });
+
+    expect(expired.status).toBe('revealing');
+    expect(expired.currentRound.winnerPlayerId).toBeNull();
+  });
+
+  test('rejects a correct answer exactly at the answer deadline without awarding points', () => {
+    const { clock, deck, store, player, room } = createStartedRoom();
+    clock.advance(ROUND_SECONDS * 1_000);
+
+    expect(() => store.submitAnswer({ code: room.code, playerId: player.id, answerId: deck[0] })).toThrow(
+      'Round is not accepting answers'
+    );
+
+    const afterDeadline = store.getRoom(room.code);
+    expect(afterDeadline.status).toBe('revealing');
+    expect(afterDeadline.currentRound.winnerPlayerId).toBeNull();
+    expect(afterDeadline.players.find((candidate) => candidate.id === player.id).score).toBe(0);
+  });
+
+  test('does not expose the correct character while accepting answers', () => {
+    const { room } = createStartedRoom();
+
+    expect(room.status).toBe('answering');
+    expect(room.currentRound).toEqual(
+      expect.objectContaining({
+        number: 1,
+        clue: expect.any(String),
+        clues: expect.any(Array),
+        acceptsAnswersUntil: expect.any(Number)
+      })
+    );
+    expect(room.currentRound.characterId).toBeUndefined();
+    expect(JSON.stringify(room.currentRound)).not.toMatch(/"characterId"/);
+  });
+
+  test('exposes the correct character during reveal', () => {
+    const { deck, store, player, room } = createStartedRoom();
+
+    const reveal = store.submitAnswer({ code: room.code, playerId: player.id, answerId: deck[0] }).room;
+
+    expect(reveal.status).toBe('revealing');
+    expect(reveal.currentRound.characterId).toBe(deck[0]);
+  });
+
+  test('advances to the next round exactly at the reveal deadline', () => {
+    const { clock, deck, store, player, room } = createStartedRoom();
+    const reveal = store.submitAnswer({ code: room.code, playerId: player.id, answerId: deck[0] }).room;
+    clock.advance(REVEAL_SECONDS * 1_000);
+
+    const next = store.advanceAfterReveal({ code: reveal.code });
+
+    expect(next.status).toBe('answering');
+    expect(next.currentRound.number).toBe(2);
+    expect(next.currentRound.characterId).toBeUndefined();
   });
 
   test('advances after reveal through round 10 and then finalizes the match', () => {
@@ -160,7 +222,7 @@ describe('room store lifecycle', () => {
       currentRoom = store.submitAnswer({
         code: currentRoom.code,
         playerId: player.id,
-        answerId: currentRoom.currentRound.characterId
+        answerId: deck[round - 1]
       }).room;
       clock.advance(REVEAL_SECONDS * 1_000 + 1);
       currentRoom = store.advanceAfterReveal({ code: currentRoom.code });
@@ -168,7 +230,7 @@ describe('room store lifecycle', () => {
       if (round < MATCH_ROUNDS) {
         expect(currentRoom.status).toBe('answering');
         expect(currentRoom.currentRound.number).toBe(round + 1);
-        expect(currentRoom.currentRound.characterId).toBe(deck[round]);
+        expect(currentRoom.currentRound.characterId).toBeUndefined();
       }
     }
 

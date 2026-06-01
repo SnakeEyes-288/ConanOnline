@@ -153,7 +153,7 @@ export function createRoomStore(options = {}) {
     if (room.status !== 'answering' || !room.currentRound) {
       return publicRoom(room);
     }
-    if (now() <= room.currentRound.acceptsAnswersUntil) {
+    if (now() < room.currentRound.acceptsAnswersUntil) {
       return publicRoom(room);
     }
 
@@ -167,7 +167,7 @@ export function createRoomStore(options = {}) {
     if (room.status !== 'revealing' || !room.currentRound) {
       return publicRoom(room);
     }
-    if (now() <= room.currentRound.revealEndsAt) {
+    if (now() < room.currentRound.revealEndsAt) {
       return publicRoom(room);
     }
 
@@ -262,7 +262,7 @@ export function createRoomStore(options = {}) {
     if (room.status !== 'answering' || !room.currentRound || room.currentRound.winnerPlayerId) {
       throw new Error('Round is not accepting answers');
     }
-    if (now() > room.currentRound.acceptsAnswersUntil) {
+    if (now() >= room.currentRound.acceptsAnswersUntil) {
       beginReveal(room);
       throw new Error('Round is not accepting answers');
     }
@@ -326,7 +326,7 @@ function publicRoom(room) {
     hostPlayerId: room.hostPlayerId,
     players: room.players.map((player) => publicPlayer(player, room.hostPlayerId)),
     totalRounds: room.totalRounds,
-    currentRound: publicRound(room.currentRound),
+    currentRound: publicRound(room.currentRound, room.status),
     createdAt: room.createdAt,
     updatedAt: room.updatedAt
   };
@@ -343,14 +343,15 @@ function publicPlayer(player, hostPlayerId) {
   };
 }
 
-function publicRound(round) {
+function publicRound(round, status) {
   if (!round) {
     return null;
   }
 
+  const isAnswering = status === 'answering';
   return {
     number: round.number,
-    characterId: round.characterId,
+    ...(isAnswering ? {} : { characterId: round.characterId }),
     clue: round.clue,
     clues: [...round.clues],
     startedAt: round.startedAt,
