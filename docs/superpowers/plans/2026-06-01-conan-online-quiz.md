@@ -4,9 +4,9 @@
 
 **Goal:** Build a deployable Thai-language Detective Conan realtime quiz where players race to be the first correct answer in 10-round rooms.
 
-**Architecture:** Create a small npm workspace with `client`, `server`, and `shared` packages. The React client renders the Detective Board UI and connects to the Railway Socket.IO server; the Node server owns rooms, timers, answer validation, and scoring; shared data exposes the 50-character roster and clues.
+**Architecture:** Create a small npm workspace with `client`, `server`, and `shared` packages. The React client renders the Detective Board UI and connects to the Render Socket.IO server; the Node server owns rooms, timers, answer validation, and scoring; shared data exposes the 50-character roster and clues.
 
-**Tech Stack:** npm workspaces, Vite, React, Socket.IO, Express, Vitest, plain CSS, Vercel frontend deployment, Railway backend deployment.
+**Tech Stack:** npm workspaces, Vite, React, Socket.IO, Express, Vitest, plain CSS, Vercel frontend deployment, Render backend deployment.
 
 ---
 
@@ -31,7 +31,7 @@
 - Create `client/src/App.css`: Detective Board responsive styling.
 - Create `client/.env.example`: local frontend environment example.
 - Create `vercel.json`: Vercel build settings for the client package.
-- Create `railway.json`: Railway start command for the server package.
+- Create `render.yaml`: Render web service Blueprint for the server package.
 - Create `README.md`: local dev and deployment instructions.
 
 ---
@@ -1610,7 +1610,7 @@ Expected: commit succeeds.
 
 **Files:**
 - Create: `vercel.json`
-- Create: `railway.json`
+- Create: `render.yaml`
 - Create: `README.md`
 
 - [ ] **Step 1: Add Vercel config**
@@ -1626,22 +1626,21 @@ Write `vercel.json`:
 }
 ```
 
-- [ ] **Step 2: Add Railway config**
+- [ ] **Step 2: Add Render config**
 
-Write `railway.json`:
+Write `render.yaml`:
 
-```json
-{
-  "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "startCommand": "npm start --workspace server",
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
-  }
-}
+```yaml
+services:
+  - type: web
+    name: conan-online-server
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start --workspace server
+    envVars:
+      - key: CLIENT_ORIGIN
+        sync: false
 ```
 
 - [ ] **Step 3: Add README**
@@ -1690,7 +1689,7 @@ Client:
 VITE_BACKEND_URL=http://localhost:4000
 ```
 
-For production, set `CLIENT_ORIGIN` on Railway to the Vercel URL and set `VITE_BACKEND_URL` on Vercel to the Railway public URL.
+For production, set `CLIENT_ORIGIN` on Render to the Vercel URL and set `VITE_BACKEND_URL` on Vercel to the Render public URL.
 
 ## Game Rules
 
@@ -1717,7 +1716,7 @@ Expected: frontend build passes, shared tests pass, backend tests pass.
 Run:
 
 ```bash
-git add vercel.json railway.json README.md
+git add vercel.json render.yaml README.md
 git commit -m "docs: add deployment instructions"
 ```
 
@@ -1790,6 +1789,6 @@ Expected: commit succeeds only if there were changes.
 
 ## Self-Review Notes
 
-- Spec coverage: realtime rooms, 10 rounds, 20-second timer, 5 clues, 50-character roster, 8-player rooms, host start, nickname-only identity, race-to-answer scoring, reveal phase, Vercel/Railway split, and offline/reconnect visibility are each covered by tasks above.
+- Spec coverage: realtime rooms, 10 rounds, 20-second timer, 5 clues, 50-character roster, 8-player rooms, host start, nickname-only identity, race-to-answer scoring, reveal phase, Vercel/Render split, and offline/reconnect visibility are each covered by tasks above.
 - Placeholder scan: no TBD/TODO/fill-in-later language remains in implementation steps.
 - Type consistency: event names, room fields, player fields, and scoring properties are consistent across shared rules, room store, Socket.IO server, and React client.

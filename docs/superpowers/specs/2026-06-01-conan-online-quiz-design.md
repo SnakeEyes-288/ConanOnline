@@ -40,9 +40,9 @@ The UI should feel like a case room rather than a marketing page. The first scre
 Use approach A:
 
 - Frontend: Vite + React deployed to Vercel.
-- Backend: Node + Express + Socket.IO deployed to Railway.
+- Backend: Node + Express + Socket.IO deployed to Render.
 - Realtime transport: Socket.IO.
-- Initial room state: in-memory on the Railway server.
+- Initial room state: in-memory on the Render server.
 - Character data: editable seed data file containing 50 Thai-language characters, each with 5 text clues.
 
 The server is the authority for room state, round timing, answer validation, round winner selection, score calculation, and leaderboard broadcasts.
@@ -196,7 +196,7 @@ End-to-end smoke verification:
 
 ## Deployment
 
-Vercel hosts the frontend. Railway hosts the backend Socket.IO server. The frontend reads the backend URL from an environment variable so local development and production deployments can use different server endpoints.
+Vercel hosts the frontend. Render hosts the backend Socket.IO server. The frontend reads the backend URL from an environment variable so local development and production deployments can use different server endpoints.
 
 ## Open Decisions
 

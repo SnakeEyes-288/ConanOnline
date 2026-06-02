@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: conan-online-server
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start --workspace server
+    envVars:
+      - key: CLIENT_ORIGIN
+        sync: false
