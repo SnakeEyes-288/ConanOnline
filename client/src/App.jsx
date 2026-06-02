@@ -32,7 +32,7 @@ function screenForRoom(room) {
 function sortPlayers(players = []) {
   return [...players].sort((left, right) => {
     if (right.score !== left.score) return right.score - left.score;
-    return left.joinedAt - right.joinedAt;
+    return left.nickname.localeCompare(right.nickname, 'th');
   });
 }
 
@@ -52,15 +52,18 @@ export default function App() {
   const [answerResult, setAnswerResult] = useState(null);
   const [error, setError] = useState('');
   const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [now, setNow] = useState(Date.now());
 
   const currentRound = room?.currentRound ?? null;
   const players = room?.players ?? [];
   const currentPlayer = players.find((candidate) => candidate.id === player?.id) ?? player;
   const isHost = Boolean(currentPlayer?.isHost);
-  const answerOptions = useMemo(() => searchCharacters(answerQuery).slice(0, 8), [answerQuery]);
+  const answerOptions = useMemo(() => searchCharacters(answerQuery).slice(0, 50), [answerQuery]);
   const revealedCharacter = findCharacter(currentRound?.characterId);
   const winner = players.find((candidate) => candidate.id === currentRound?.winnerPlayerId) ?? null;
   const finalPlayers = useMemo(() => sortPlayers(players), [players]);
+  const roundDeadline = screen === 'reveal' ? currentRound?.revealEndsAt : currentRound?.acceptsAnswersUntil;
+  const secondsLeft = roundDeadline ? Math.max(0, Math.ceil((roundDeadline - now) / 1000)) : 0;
 
   useEffect(() => {
     function acceptSession(payload) {
@@ -129,6 +132,11 @@ export default function App() {
     };
   }, [sessionId, socket]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
+
   function updateForm(event) {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
@@ -185,31 +193,32 @@ export default function App() {
       {screen === 'home' ? (
         <section className="screen home-screen">
           <form onSubmit={createRoom} className="panel">
-            <h2>Create a room</h2>
+            <h2>สร้างห้อง</h2>
             <label>
-              Nickname
-              <input name="nickname" value={form.nickname} onChange={updateForm} placeholder="Detective" />
+              ชื่อเล่น
+              <input name="nickname" value={form.nickname} onChange={updateForm} placeholder="เช่น โคนัน" required />
             </label>
-            <button type="submit">Create room</button>
+            <button type="submit" disabled={connectionStatus !== 'connected'}>สร้างห้อง</button>
           </form>
 
           <form onSubmit={joinRoom} className="panel">
-            <h2>Join a room</h2>
+            <h2>เข้าห้อง</h2>
             <label>
-              Room code
+              รหัสห้อง
               <input
                 name="roomCode"
                 value={form.roomCode}
                 onChange={updateForm}
                 placeholder="ABCD"
                 maxLength={4}
+                required
               />
             </label>
             <label>
-              Nickname
-              <input name="nickname" value={form.nickname} onChange={updateForm} placeholder="Detective" />
+              ชื่อเล่น
+              <input name="nickname" value={form.nickname} onChange={updateForm} placeholder="เช่น รัน" required />
             </label>
-            <button type="submit">Join room</button>
+            <button type="submit" disabled={connectionStatus !== 'connected'}>เข้าห้อง</button>
           </form>
         </section>
       ) : null}
@@ -218,22 +227,22 @@ export default function App() {
         <section className="screen lobby-screen">
           <RoomSummary room={room} currentPlayer={currentPlayer} />
           <PlayerList players={players} />
-          <button type="button" onClick={startMatch} disabled={!isHost}>
-            {isHost ? 'Start match' : 'Waiting for host'}
+          <button type="button" onClick={startMatch} disabled={!isHost || connectionStatus !== 'connected'}>
+            {isHost ? 'เริ่มเกม' : 'รอ host เริ่มเกม'}
           </button>
         </section>
       ) : null}
 
       {screen === 'game' ? (
         <section className="screen game-screen">
-          <RoundHeader room={room} round={currentRound} />
-          <p className="clue">{currentRound?.clue}</p>
+          <RoundHeader room={room} round={currentRound} secondsLeft={secondsLeft} label="เวลาตอบ" />
+          <ClueList clues={currentRound?.clues} />
           <label>
-            Search answer
+            ค้นหาคำตอบ
             <input
               value={answerQuery}
               onChange={(event) => setAnswerQuery(event.target.value)}
-              placeholder="Type a character name"
+              placeholder="พิมพ์ชื่อตัวละคร"
             />
           </label>
           <div className="answer-grid">
@@ -250,7 +259,7 @@ export default function App() {
           </div>
           {answerResult ? (
             <p className="answer-result">
-              {answerResult.correct ? 'Correct answer' : 'Not this character'}
+              {answerResult.correct ? 'ตอบถูก' : 'ยังไม่ใช่ ลองใหม่ได้'}
               {answerResult.points ? ` (+${answerResult.points})` : ''}
             </p>
           ) : null}
@@ -260,11 +269,10 @@ export default function App() {
 
       {screen === 'reveal' ? (
         <section className="screen reveal-screen">
-          <RoundHeader room={room} round={currentRound} />
-          <p className="clue">{currentRound?.clue}</p>
-          <h2>{revealedCharacter?.name ?? 'No answer revealed'}</h2>
-          {winner ? <p>Round winner: {winner.nickname}</p> : <p>No winner this round.</p>}
-          {currentRound?.winningAnswerId ? <p>Winning answer: {findCharacter(currentRound.winningAnswerId)?.name}</p> : null}
+          <RoundHeader room={room} round={currentRound} secondsLeft={secondsLeft} label="รอบถัดไปใน" />
+          <ClueList clues={currentRound?.clues} />
+          <h2>{revealedCharacter?.name ?? 'ไม่มีผู้ชนะในรอบนี้'}</h2>
+          {winner ? <p>ผู้ชนะรอบนี้: {winner.nickname} +1 คะแนน</p> : <p>หมดเวลา ไม่มีใครตอบถูก</p>}
           <PlayerList players={players} />
         </section>
       ) : null}
@@ -272,7 +280,7 @@ export default function App() {
       {screen === 'final' ? (
         <section className="screen final-screen">
           <RoomSummary room={room} currentPlayer={currentPlayer} />
-          <h2>Final scores</h2>
+          <h2>คะแนนสุดท้าย</h2>
           <ol>
             {finalPlayers.map((candidate) => (
               <li key={candidate.id}>
@@ -280,8 +288,8 @@ export default function App() {
               </li>
             ))}
           </ol>
-          <button type="button" onClick={restartMatch} disabled={!isHost}>
-            {isHost ? 'Play again' : 'Waiting for host'}
+          <button type="button" onClick={restartMatch} disabled={!isHost || connectionStatus !== 'connected'}>
+            {isHost ? 'เล่นอีกครั้ง' : 'รอ host'}
           </button>
         </section>
       ) : null}
@@ -292,33 +300,50 @@ export default function App() {
 function RoomSummary({ room, currentPlayer }) {
   return (
     <section className="room-summary">
-      <p>Room code</p>
+      <p>รหัสห้อง</p>
       <h2>{room?.code}</h2>
       <p>
-        Playing as {currentPlayer?.nickname ?? 'Detective'}
+        ผู้เล่น {currentPlayer?.nickname ?? 'Detective'}
         {currentPlayer?.isHost ? ' (host)' : ''}
       </p>
     </section>
   );
 }
 
-function RoundHeader({ room, round }) {
+function RoundHeader({ room, round, secondsLeft, label }) {
   return (
     <header className="round-header">
-      <p>
-        Round {round?.number ?? 0} of {room?.totalRounds ?? 0}
-      </p>
-      <p>Status: {room?.status}</p>
+      <div>
+        <p className="eyebrow">Round {round?.number ?? 0} / {room?.totalRounds ?? 0}</p>
+        <h2>{room?.status === 'revealing' ? 'เฉลยคดี' : 'ใครคือคนในคดีนี้?'}</h2>
+      </div>
+      <div className="timer-box">
+        <span>{label}</span>
+        <strong>{secondsLeft}</strong>
+      </div>
     </header>
+  );
+}
+
+function ClueList({ clues = [] }) {
+  return (
+    <section className="clue-list" aria-label="คำใบ้">
+      {clues.map((clue, index) => (
+        <p className="clue" key={`${index}-${clue}`}>
+          <span>{index + 1}</span>
+          {clue}
+        </p>
+      ))}
+    </section>
   );
 }
 
 function PlayerList({ players }) {
   return (
     <section className="player-list">
-      <h2>Players</h2>
+      <h2>คะแนน</h2>
       <ul>
-        {players.map((candidate) => (
+        {sortPlayers(players).map((candidate) => (
           <li key={candidate.id}>
             <span>{candidate.nickname}</span>
             <span>{candidate.score}</span>
