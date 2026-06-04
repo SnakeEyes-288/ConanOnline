@@ -238,4 +238,31 @@ describe('room store lifecycle', () => {
     expect(currentRoom.currentRound).toBeNull();
     expect(currentRoom.players.find((candidate) => candidate.id === player.id).score).toBe(10);
   });
+
+  test('starts a replay with a different character order even when the random deck repeats', () => {
+    const clock = createClock();
+    const deck = characters.slice(0, MATCH_ROUNDS).map((character) => character.id);
+    const store = createRoomStore({ now: clock.now, random: () => 0, deckFactory: () => deck });
+    const created = store.createRoom({ nickname: 'Ran', socketId: 'socket-host', sessionId: 'session-host' });
+    let currentRoom = store.startMatch({ code: created.room.code, playerId: created.player.id });
+    const firstMatchFirstClue = currentRoom.currentRound.clue;
+
+    for (let round = 1; round <= MATCH_ROUNDS; round += 1) {
+      currentRoom = store.submitAnswer({
+        code: currentRoom.code,
+        playerId: created.player.id,
+        answerId: deck[round - 1]
+      }).room;
+      clock.advance(REVEAL_SECONDS * 1_000 + 1);
+      currentRoom = store.advanceAfterReveal({ code: currentRoom.code });
+    }
+
+    expect(currentRoom.status).toBe('finished');
+
+    const replay = store.startMatch({ code: created.room.code, playerId: created.player.id });
+
+    expect(replay.status).toBe('answering');
+    expect(replay.currentRound.number).toBe(1);
+    expect(replay.currentRound.clue).not.toBe(firstMatchFirstClue);
+  });
 });

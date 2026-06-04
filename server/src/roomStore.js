@@ -30,6 +30,7 @@ export function createRoomStore(options = {}) {
       totalRounds: MATCH_ROUNDS,
       currentRound: null,
       match: null,
+      lastDeck: null,
       createdAt: now(),
       updatedAt: now()
     };
@@ -90,10 +91,7 @@ export function createRoomStore(options = {}) {
       throw new Error('Match already started');
     }
 
-    const deck = deckFactory(MATCH_ROUNDS);
-    if (!Array.isArray(deck) || deck.length < MATCH_ROUNDS) {
-      throw new Error('Round deck is incomplete');
-    }
+    const deck = createFreshDeck(room);
 
     for (const player of room.players) {
       player.score = 0;
@@ -104,6 +102,7 @@ export function createRoomStore(options = {}) {
       deck: deck.slice(0, MATCH_ROUNDS),
       roundIndex: 0
     };
+    room.lastDeck = [...room.match.deck];
     room.currentRound = createRound(room, 0);
     touch(room);
 
@@ -256,6 +255,40 @@ export function createRoomStore(options = {}) {
       winningAnswerId: null,
       attempts: []
     };
+  }
+
+  function createFreshDeck(room) {
+    let deck = normalizeDeck(deckFactory(MATCH_ROUNDS));
+
+    for (let attempt = 0; attempt < 5 && isSameDeck(deck, room.lastDeck); attempt += 1) {
+      deck = normalizeDeck(deckFactory(MATCH_ROUNDS));
+    }
+
+    if (isSameDeck(deck, room.lastDeck)) {
+      deck = rotateDeck(deck);
+    }
+
+    return deck;
+  }
+
+  function normalizeDeck(deck) {
+    if (!Array.isArray(deck) || deck.length < MATCH_ROUNDS) {
+      throw new Error('Round deck is incomplete');
+    }
+
+    return deck.slice(0, MATCH_ROUNDS);
+  }
+
+  function isSameDeck(left, right) {
+    return Array.isArray(left) && Array.isArray(right) && left.every((characterId, index) => characterId === right[index]);
+  }
+
+  function rotateDeck(deck) {
+    if (deck.length < 2) {
+      return deck;
+    }
+
+    return [...deck.slice(1), deck[0]];
   }
 
   function ensureAcceptingAnswers(room) {
